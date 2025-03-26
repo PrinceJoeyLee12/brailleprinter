@@ -42,6 +42,23 @@
   <line x1="300" y1="340" x2="250" y2="340" stroke="black" stroke-width="2" />
   <text x="260" y="335" font-family="Arial" font-size="10">Pin 2 (TX)</text>
   
+  <!-- LCD Display (New) -->
+  <rect x="150" y="400" width="120" height="80" fill="#03A9F4" stroke="black" stroke-width="2" />
+  <text x="185" y="430" font-family="Arial" font-size="12" fill="white">LCD</text>
+  <text x="185" y="450" font-family="Arial" font-size="12" fill="white">16x2 Display</text>
+  <line x1="300" y1="400" x2="220" y2="400" stroke="black" stroke-width="2" />
+  <text x="240" y="395" font-family="Arial" font-size="10">Pin 16 (RS)</text>
+  <line x1="300" y1="410" x2="230" y2="410" stroke="black" stroke-width="2" />
+  <text x="240" y="405" font-family="Arial" font-size="10">Pin 17 (E)</text>
+  <line x1="300" y1="420" x2="240" y2="420" stroke="black" stroke-width="2" />
+  <text x="260" y="415" font-family="Arial" font-size="10">Pin 23 (D4)</text>
+  <line x1="300" y1="430" x2="240" y2="430" stroke="black" stroke-width="2" />
+  <text x="260" y="425" font-family="Arial" font-size="10">Pin 25 (D5)</text>
+  <line x1="300" y1="440" x2="240" y2="440" stroke="black" stroke-width="2" />
+  <text x="260" y="435" font-family="Arial" font-size="10">Pin 27 (D6)</text>
+  <line x1="300" y1="450" x2="240" y2="450" stroke="black" stroke-width="2" />
+  <text x="260" y="445" font-family="Arial" font-size="10">Pin 29 (D7)</text>
+  
   <!-- Endstops -->
   <rect x="600" y="100" width="80" height="40" fill="#795548" stroke="black" stroke-width="2" />
   <text x="610" y="125" font-family="Arial" font-size="10" fill="white">X Endstops</text>
@@ -61,7 +78,7 @@
   <line x1="475" y1="400" x2="475" y2="320" stroke="black" stroke-width="2" stroke-dasharray="5,5" />
 
   <!-- Legend -->
-  <rect x="600" y="400" width="150" height="150" fill="white" stroke="black" stroke-width="1" />
+  <rect x="600" y="400" width="150" height="170" fill="white" stroke="black" stroke-width="1" />
   <text x="610" y="420" font-family="Arial" font-size="12" font-weight="bold">Legend</text>
   
   <rect x="610" y="430" width="20" height="10" fill="#4CAF50" />
@@ -81,4 +98,7 @@
   
   <rect x="610" y="530" width="20" height="10" fill="#795548" />
   <text x="640" y="540" font-family="Arial" font-size="10">Endstops</text>
+  
+  <rect x="610" y="550" width="20" height="10" fill="#03A9F4" />
+  <text x="640" y="560" font-family="Arial" font-size="10">LCD Display</text>
 </svg>

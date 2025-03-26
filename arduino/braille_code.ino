@@ -8,6 +8,7 @@
   - X-axis stepper motor (for horizontal movement)
   - Paper roller stepper motor (Z-axis)
   - Solenoid for dot impression
+  - 16x2 LCD display
   
   Functionality:
   - Receives text via Bluetooth
@@ -16,10 +17,13 @@
   - Prints row-by-row across all characters in a line
   - Uses proper Braille dimensions (2mm gaps, 6mm char spacing, 12mm word spacing)
   - Optimized for standard Braille dimensions
+  - Displays status information on LCD
+  - Adjustable X-axis speed via Bluetooth app
 */
 
 #include <SoftwareSerial.h>
 #include <AccelStepper.h>
+#include <LiquidCrystal.h>
 
 // Pins for RAMPS 1.4 X-axis (horizontal movement)
 #define X_STEP_PIN         54
@@ -42,6 +46,14 @@
 #define BT_RX_PIN           1  // Digital pin D1
 #define BT_TX_PIN           2  // Digital pin D2
 
+// LCD pins for 16x2 display
+#define LCD_RS_PIN         16
+#define LCD_ENABLE_PIN     17
+#define LCD_D4_PIN         23
+#define LCD_D5_PIN         25
+#define LCD_D6_PIN         27
+#define LCD_D7_PIN         29
+
 // Constants
 #define MAX_LINE_LENGTH    18  // Maximum characters per line for Letter paper
 #define DOT_PRESS_TIME    300  // Time in ms to keep solenoid active
@@ -56,10 +68,12 @@
 #define LINE_SPACING       STEP_PER_MM * 15  // 12mm between lines 
 
 // Motor settings
-#define X_ACCEL           10000  // Acceleration for X-axis stepper
-#define X_MAX_SPEED       20000  // Max speed for X-axis stepper
-#define Z_ACCEL           200  // Acceleration for paper roller stepper
-#define Z_MAX_SPEED       400  // Max speed for paper roller stepper
+#define X_ACCEL_MIN       1000  // Minimum acceleration for X-axis (slowest setting)
+#define X_MAX_SPEED_MIN   2000  // Minimum max speed for X-axis (slowest setting)
+#define X_ACCEL_MAX      12000  // Maximum acceleration for X-axis (fastest setting)
+#define X_MAX_SPEED_MAX  24000  // Maximum max speed for X-axis (fastest setting)
+#define Z_ACCEL           200   // Acceleration for paper roller stepper
+#define Z_MAX_SPEED       400   // Max speed for paper roller stepper
 
 // Paper dimensions (Letter size: 8.5" x 11")
 // Converted to stepper motor steps based on assumed 40 steps per mm
@@ -76,6 +90,9 @@ AccelStepper zStepper(AccelStepper::DRIVER, Z_STEP_PIN, Z_DIR_PIN);
 // Setup Bluetooth serial
 SoftwareSerial btSerial(BT_RX_PIN, BT_TX_PIN);
 
+// Setup LCD
+LiquidCrystal lcd(LCD_RS_PIN, LCD_ENABLE_PIN, LCD_D4_PIN, LCD_D5_PIN, LCD_D6_PIN, LCD_D7_PIN);
+
 // Variables
 String inputText = "";
 bool newData = false;
@@ -85,6 +102,13 @@ int printableWidth = PAPER_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
 char currentLine[MAX_LINE_LENGTH + 1];
 int lineLength = 0;
 bool numberMode = false;    // Flag for number mode in Braille
+
+// Speed control variable
+int xSpeedSetting = 70; // Default speed setting (40-100 range, 70 is middle)
+
+// LCD message variables
+String lcdStatus = "Ready";
+String lcdInfo = "";
 
 // Test mode variables
 String testText = "";       // Text for testing without Bluetooth input
@@ -159,9 +183,12 @@ void setup() {
   Serial.begin(9600);
   btSerial.begin(9600);
 
+  // Initialize LCD
+  lcd.begin(16, 2);
+  updateLCD("Braille Printer", "Initializing...");
+  
   // Initialize stepper motors
-  xStepper.setMaxSpeed(X_MAX_SPEED);
-  xStepper.setAcceleration(X_ACCEL);
+  updateMotorSpeeds(xSpeedSetting); // Set initial motor speeds
   xStepper.setEnablePin(X_ENABLE_PIN);
   xStepper.setPinsInverted(false, false, true);
   xStepper.enableOutputs();
@@ -181,6 +208,7 @@ void setup() {
   pinMode(X_MAX_PIN, INPUT_PULLUP);
 
   // Home the X-axis to right side (X_MAX)
+  updateLCD("Homing X-Axis", "Please wait...");
   homeXAxisToRight();
 
   // Set test text - default to empty string
@@ -194,11 +222,56 @@ void setup() {
     Serial.println(testText);
   }
 
+  updateLCD("Braille Printer", "Ready");
   Serial.println("Braille Printer Ready");
   btSerial.println("Braille Printer Ready");
 
   // Clear any residual data
   clearBuffers();
+}
+
+// Function to update LCD with status information
+void updateLCD(String line1, String line2) {
+  lcdStatus = line1;
+  lcdInfo = line2;
+  
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(line1);
+  
+  lcd.setCursor(0, 1);
+  lcd.print(line2);
+}
+
+// Function to update motor speeds based on speed setting (40-100)
+void updateMotorSpeeds(int speedSetting) {
+  // Ensure speed setting is in valid range
+  speedSetting = constrain(speedSetting, 40, 100);
+  xSpeedSetting = speedSetting;
+  
+  // Map speed setting to actual motor values
+  long maxSpeed = map(speedSetting, 40, 100, X_MAX_SPEED_MIN, X_MAX_SPEED_MAX);
+  long accel = map(speedSetting, 40, 100, X_ACCEL_MIN, X_ACCEL_MAX);
+  
+  // Update stepper motor settings
+  xStepper.setMaxSpeed(maxSpeed);
+  xStepper.setAcceleration(accel);
+  
+  // Update LCD with new speed setting
+  String speedInfo = "Speed: " + String(speedSetting) + "%";
+  updateLCD(lcdStatus, speedInfo);
+  
+  Serial.print("X-axis speed set to: ");
+  Serial.print(speedSetting);
+  Serial.print("% (MaxSpeed: ");
+  Serial.print(maxSpeed);
+  Serial.print(", Accel: ");
+  Serial.print(accel);
+  Serial.println(")");
+  
+  // Wait a moment to display speed, then restore previous info
+  delay(1000);
+  updateLCD(lcdStatus, lcdInfo);
 }
 
 // Add new function to clear all buffers
@@ -264,18 +337,27 @@ void loop() {
     // Handle connection state changes
     if (inChar == '\0' || inChar == 0xFF) {
       clearBuffers();  // Clear buffers on potential disconnection
+      updateLCD("BT Disconnected", "Waiting...");
+      btConnected = false;
       continue;
+    } else if (!btConnected) {
+      btConnected = true;
+      updateLCD("BT Connected", "Ready");
     }
     
     if (inChar == '#') {
       clearBuffers();
       processCommand();
+    } else if (inChar == '$') {
+      // New command prefix for speed control
+      processSpeedCommand();
     } else if (inChar == '\n' || inChar == '\r') {
       if (btBufferIndex > 0) {
         btBuffer[btBufferIndex] = '\0';
         inputText = String(btBuffer);
         Serial.print("BT Message complete: ");
         Serial.println(inputText);
+        updateLCD("Received text", String(btBufferIndex) + " chars");
         newData = true;
         btBufferIndex = 0;  // Reset buffer
       }
@@ -295,7 +377,9 @@ void loop() {
     if (inputText.length() > 0) {
       Serial.print("Processing: ");
       Serial.println(inputText);
+      updateLCD("Printing", String(inputText.length()) + " chars");
       printBrailleText(inputText);
+      updateLCD("Print Complete", "Ready");
       btSerial.println("OK");  // Acknowledge receipt
     }
     clearBuffers();  // Clear after processing
@@ -339,6 +423,49 @@ void loop() {
   zStepper.run();
 }
 
+// Process speed command from Bluetooth ($SPEED:XX where XX is 40-100)
+void processSpeedCommand() {
+  Serial.println("Processing speed command...");
+  btBufferIndex = 0; // Reset buffer
+  
+  // Wait for complete command with timeout
+  unsigned long commandStart = millis();
+  while ((millis() - commandStart) < 1000) { // 1 second timeout
+    while (btSerial.available()) {
+      char c = btSerial.read();
+      
+      if (c == '\n' || c == '\r') {
+        btBuffer[btBufferIndex] = '\0';
+        String command = String(btBuffer);
+        btBufferIndex = 0;
+        
+        Serial.print("Processing speed command: ");
+        Serial.println(command);
+        
+        if (command.startsWith("SPEED:")) {
+          String speedValueStr = command.substring(6);
+          int speedValue = speedValueStr.toInt();
+          
+          if (speedValue >= 40 && speedValue <= 100) {
+            updateMotorSpeeds(speedValue);
+            btSerial.println("OK:SPEED=" + String(speedValue));
+          } else {
+            btSerial.println("ERROR:Invalid speed value");
+          }
+        }
+        return;
+      } else if (btBufferIndex < BT_BUFFER_SIZE - 1) {
+        btBuffer[btBufferIndex++] = c;
+      }
+      delay(10); // Small delay between reads
+    }
+  }
+  
+  Serial.println("Speed command timeout!");
+  btBufferIndex = 0;
+  clearBuffers();
+}
+
 // Process commands from the Bluetooth app
 void processCommand() {
   Serial.println("Processing BT command...");
@@ -362,17 +489,23 @@ void processCommand() {
         
         // Process the command
         if (command.startsWith("HOME")) {
+          updateLCD("Homing X-Axis", "Please wait...");
           homeXAxisToRight();
           printPositionY = 0;
           btSerial.println("OK:HOME");
+          updateLCD("Braille Printer", "Ready");
         } else if (command.startsWith("RESET")) {
+          updateLCD("Resetting", "Please wait...");
           homeXAxisToRight();
           resetPaper();
           btSerial.println("OK:RESET");
+          updateLCD("Braille Printer", "Ready");
         } else if (command.startsWith("TEST=")) {
           String testText = command.substring(5);
+          updateLCD("Test Printing", testText.substring(0, 16));
           printBrailleText(testText);
           btSerial.println("OK:TEST");
+          updateLCD("Braille Printer", "Ready");
         }
         return;
       } else if (btBufferIndex < BT_BUFFER_SIZE - 1) {
@@ -413,6 +546,14 @@ void processSerialCommand() {
     Serial.println(testText);
     printBrailleText(testText);
     Serial.println("Test print complete");
+  } else if (command.startsWith("SPEED=")) {
+    int speedValue = command.substring(6).toInt();
+    if (speedValue >= 40 && speedValue <= 100) {
+      updateMotorSpeeds(speedValue);
+      Serial.println("Speed updated to: " + String(speedValue));
+    } else {
+      Serial.println("Invalid speed value. Use range 40-100.");
+    }
   }
   
   // Additional commands can be added here
@@ -452,10 +593,12 @@ void homeXAxisToRight() {
   
   Serial.print("X-AXIS: Homed to position ");
   Serial.println(printPositionX);
+  updateLCD("X-Axis Homed", String(printPositionX));
 }
 
 // Reset paper position
 void resetPaper() {
+  updateLCD("Resetting Paper", "Please wait...");
   // Move paper to beginning
   zStepper.moveTo(-10000);
   while (zStepper.distanceToGo() != 0) {
@@ -464,6 +607,7 @@ void resetPaper() {
   
   zStepper.setCurrentPosition(MARGIN_TOP);
   printPositionY = MARGIN_TOP;
+  updateLCD("Paper Reset", "Ready");
 }
 
 // Get Braille pattern for a character
@@ -483,6 +627,7 @@ byte getBraillePattern(char c) {
 // Print Braille text
 void printBrailleText(String text) {
   int textLength = text.length();
+  updateLCD("Printing Text", String(text.length()) + " chars");
   
   // Process text in lines
   for (int i = 0; i < textLength; i++) {
@@ -498,9 +643,15 @@ void printBrailleText(String text) {
       // Reset line buffer
       lineLength = 0;
     }
+    
+    // Update LCD with progress periodically
+    if (i % 5 == 0) {
+      updateLCD("Printing", String(i+1) + "/" + String(textLength));
+    }
   }
   
   // Send confirmation
+  updateLCD("Print Complete", "Ready");
   Serial.println("Printing complete");
   btSerial.println("Printing complete");
 }
@@ -710,6 +861,7 @@ void advancePaperForRow() {
   printPositionY += DOT_GAP;
   Serial.print("PAPER: New Y position: ");
   Serial.println(printPositionY);
+  updateLCD("Moving Paper", "Next Row");
 }
 
 // Advance paper to the next line
@@ -732,7 +884,10 @@ void advancePaperForNewLine() {
   homeXAxisToRight();
   
   if (printPositionY >= PAPER_HEIGHT - MARGIN_TOP) {
+    updateLCD("Warning!", "End of page");
     btSerial.println("Warning: Approaching end of page");
     Serial.println("Warning: Approaching end of page");
+    delay(2000); // Show warning for 2 seconds
+    updateLCD("Braille Printer", "Ready");
   }
 }
