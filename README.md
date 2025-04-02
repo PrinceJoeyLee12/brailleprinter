@@ -17,6 +17,8 @@ This project is an Arduino-based Braille printer capable of translating regular 
 - Automatic return to home position between printing rows
 - Paper advancement for new lines
 - Test mode for quick testing without Bluetooth connection
+- LCD display shows printer status and information
+- Adjustable X-axis speed via Bluetooth app
 
 ## Hardware Components
 
@@ -27,6 +29,7 @@ This project is an Arduino-based Braille printer capable of translating regular 
 - **Z-axis Stepper Motor**: Controls paper advancement (roller)
 - **Solenoid**: Creates Braille dots by pressing onto paper
 - **Endstops**: Limit switches for X and Z axes for homing
+- **16x2 LCD Display**: Shows printer status and information
 - **12V Power Supply**: Powers the system
 
 ## Pin Connections
@@ -53,6 +56,15 @@ This project is an Arduino-based Braille printer capable of translating regular 
 - Bluetooth RX: Pin 1 (Connected to AUX-1)
 - Bluetooth TX: Pin 2 (Connected to AUX-1)
 
+### LCD Display (16x2)
+
+- RS: Pin 16
+- Enable: Pin 17
+- D4: Pin 23
+- D5: Pin 25
+- D6: Pin 27
+- D7: Pin 29
+
 ## How It Works
 
 ### Braille Encoding
@@ -78,6 +90,13 @@ For example, the letter 'a' is represented by dot 0 only, which corresponds to t
    - Finally, it advances again and prints the bottom row.
 5. **Line Advancement**: After completing all three rows, the paper advances to prepare for the next line.
 
+### Speed Control
+
+The X-axis motor speed can be adjusted through the Bluetooth app with a slider (40% to 100%):
+
+- 40%: Slowest setting (Max Speed: 2000, Acceleration: 1000)
+- 100%: Fastest setting (Max Speed: 24000, Acceleration: 12000)
+
 ### Number Mode
 
 In Braille, numbers are represented using the same patterns as the first ten letters (a-j) but with a special "number sign" prefix. The printer automatically detects numbers and adds the appropriate number sign.
@@ -89,6 +108,7 @@ The printer supports several commands:
 - `#HOME`: Return X-axis to home position
 - `#RESET`: Reset both X and Z axes to home positions
 - `#TEST=text`: Print the specified text as a test
+- `$SPEED:XX`: Set X-axis speed (XX is value between 40-100)
 
 Commands can be sent via Serial monitor or Bluetooth.
 
@@ -116,6 +136,7 @@ The printer is designed for Letter size paper (8.5" x 11") and includes appropri
 2. **Inconsistent dot spacing**: Calibrate stepper motor steps per mm (`STEP_PER_MM` constant).
 3. **Weak dot impression**: Adjust `DOT_PRESS_TIME` to increase solenoid activation time.
 4. **Printer losing position**: Ensure endstops are properly connected and functioning.
+5. **LCD not displaying correctly**: Check wiring connections to LCD pins.
 
 ### Diagnostics
 
@@ -125,6 +146,7 @@ The printer outputs detailed diagnostic information via Serial monitor, includin
 - Dot patterns being printed
 - X and Z axis movements
 - Command processing
+- Speed settings
 
 ## Future Improvements
 
@@ -135,6 +157,7 @@ Potential enhancements for the project:
 - Web interface for remote printing
 - Battery power option for portability
 - Automatic paper feed mechanism for multiple pages
+- Enhanced LCD UI with menu system
 
 ## License
 
