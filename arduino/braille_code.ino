@@ -578,12 +578,6 @@ void homeXAxisToRight() {
   xStepper.setCurrentPosition(PAPER_WIDTH - MARGIN_RIGHT);
   printPositionX = PAPER_WIDTH - MARGIN_RIGHT;
   
-  // Move slightly away from end switch
-  xStepper.moveTo(printPositionX - 50);
-  while (xStepper.distanceToGo() != 0) {
-    xStepper.run();
-  }
-  
   // Reset position to right margin
   xStepper.setCurrentPosition(PAPER_WIDTH - MARGIN_RIGHT);
   printPositionX = PAPER_WIDTH - MARGIN_RIGHT;
