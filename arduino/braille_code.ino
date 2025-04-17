@@ -167,6 +167,8 @@ const byte numberSign = 0b00111110;  // Number sign pattern
 // Add these variables after other global variables
 long totalStepsFromHome = 0;  // Tracks total steps moved from home position
 long maxStepsFromHome = 0;    // Stores maximum steps moved in one line
+int currentLineNumber = 0;    // Tracks the current line number being printed
+int totalLines = 0;           // Tracks the total number of lines to print
 
 #define BT_BUFFER_SIZE 256
 char btBuffer[BT_BUFFER_SIZE];
@@ -342,7 +344,7 @@ void loop() {
       continue;
     } else if (!btConnected) {
       btConnected = true;
-      updateLCD("BT Connected", "Ready");
+      updateLCD("BT Connected", "Ready for text");
     }
     
     if (inChar == '#') {
@@ -378,6 +380,11 @@ void loop() {
       Serial.print("Processing: ");
       Serial.println(inputText);
       updateLCD("Printing", String(inputText.length()) + " chars");
+      
+      // Calculate total lines before printing
+      totalLines = (inputText.length() + MAX_LINE_LENGTH - 1) / MAX_LINE_LENGTH;
+      currentLineNumber = 0;
+      
       printBrailleText(inputText);
       updateLCD("Print Complete", "Ready");
       btSerial.println("OK");  // Acknowledge receipt
@@ -587,7 +594,13 @@ void homeXAxisToRight() {
   
   Serial.print("X-AXIS: Homed to position ");
   Serial.println(printPositionX);
-  updateLCD("X-Axis Homed", String(printPositionX));
+  
+  // Show connection status along with homing info
+  if (btConnected) {
+    updateLCD("X-Axis Homed", "BT Connected");
+  } else {
+    updateLCD("X-Axis Homed", String(printPositionX));
+  }
 }
 
 // Reset paper position
@@ -621,7 +634,7 @@ byte getBraillePattern(char c) {
 // Print Braille text
 void printBrailleText(String text) {
   int textLength = text.length();
-  updateLCD("Printing Text", String(text.length()) + " chars");
+  currentLineNumber = 0;
   
   // Process text in lines
   for (int i = 0; i < textLength; i++) {
@@ -630,6 +643,13 @@ void printBrailleText(String text) {
     
     // Check if line is full or we reached end of text
     if (lineLength >= MAX_LINE_LENGTH || i == textLength - 1) {
+      // Increment line number
+      currentLineNumber++;
+      
+      // Update LCD with clear line information
+      updateLCD("Line " + String(currentLineNumber) + "/" + String(totalLines),
+                "Chars: " + String(lineLength));
+      
       // Prepare and print current line
       prepareBrailleLine(currentLine, lineLength);
       printPreparedLine();
@@ -640,7 +660,8 @@ void printBrailleText(String text) {
     
     // Update LCD with progress periodically
     if (i % 5 == 0) {
-      updateLCD("Printing", String(i+1) + "/" + String(textLength));
+      updateLCD("Printing " + String(i+1) + "/" + String(textLength),
+                "Line " + String(currentLineNumber+1) + "/" + String(totalLines));
     }
   }
   
@@ -708,6 +729,10 @@ void printPreparedLine() {
     Serial.println("----------------------------------------");
     
     homeXAxisToRight();
+    
+    // Update LCD with row information
+    updateLCD("Line " + String(currentLineNumber) + "/" + String(totalLines),
+              "Row " + String(row+1) + "/3 - " + String(lineLength) + " chars");
     
     if (row > 0) {
       // Return to home before starting new row
