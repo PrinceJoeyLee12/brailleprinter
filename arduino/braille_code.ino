@@ -161,8 +161,8 @@ const byte braillePatterns[] = {
 // Number sign (placed before numbers)
 const byte numberSign = 0b00111110;  // Number sign pattern
 
-// Numbers in Braille are the same as the first 10 letters, but with the number sign before them
-// 1=a, 2=b, 3=c, 4=d, 5=e, 6=f, 7=g, 8=h, 9=i, 0=j
+// Capital letter indicator
+const byte capitalSign = 0b00000010;  // Capital letter indicator - dot 5 only
 
 // Add these variables after other global variables
 long totalStepsFromHome = 0;  // Tracks total steps moved from home position
@@ -636,26 +636,38 @@ void printBrailleText(String text) {
   int textLength = text.length();
   currentLineNumber = 0;
   
-  // Process text in lines
+  // Reset line buffer
+  lineLength = 0;
+  
+  // Process text with awareness of special characters
   for (int i = 0; i < textLength; i++) {
-    currentLine[lineLength] = text.charAt(i);
-    lineLength++;
+    char c = text.charAt(i);
     
-    // Check if line is full or we reached end of text
-    if (lineLength >= MAX_LINE_LENGTH || i == textLength - 1) {
-      // Increment line number
-      currentLineNumber++;
-      
-      // Update LCD with clear line information
-      updateLCD("Line " + String(currentLineNumber) + "/" + String(totalLines),
-                "Chars: " + String(lineLength));
-      
-      // Prepare and print current line
+    // Check if adding this character (plus any indicators) would exceed line length
+    int additionalChars = 0;
+    if (c >= 'A' && c <= 'Z') {
+      additionalChars = 1; // Capital sign adds one character
+    } else if (c >= '0' && c <= '9' && !numberMode) {
+      additionalChars = 1; // Number sign adds one character
+    }
+    
+    // Check if we need to print current line before adding this character
+    if (lineLength + additionalChars + 1 > MAX_LINE_LENGTH) {
+      // Current line would be too long with this character, print it first
       prepareBrailleLine(currentLine, lineLength);
       printPreparedLine();
-      
-      // Reset line buffer
-      lineLength = 0;
+      lineLength = 0; // Reset for next line
+    }
+    
+    // Now add character to current line
+    currentLine[lineLength] = c;
+    lineLength++;
+    
+    // Check if we've reached the end of text
+    if (i == textLength - 1) {
+      // Print final line
+      prepareBrailleLine(currentLine, lineLength);
+      printPreparedLine();
     }
     
     // Update LCD with progress periodically
@@ -682,8 +694,20 @@ void prepareBrailleLine(char* line, int length) {
   for (int i = 0; i < length; i++) {
     char c = line[i];
     
+    // Check for capital letters
+    if (c >= 'A' && c <= 'Z') {
+      // Add capital letter indicator
+      lineBuffer[bufferIndex].pattern = capitalSign;
+      lineBuffer[bufferIndex].isSpace = false;
+      bufferIndex++;
+      
+      // Then add the letter pattern (converting to lowercase for pattern lookup)
+      lineBuffer[bufferIndex].pattern = getBraillePattern(c);
+      lineBuffer[bufferIndex].isSpace = false;
+      bufferIndex++;
+    }
     // Check for numbers
-    if (c >= '0' && c <= '9') {
+    else if (c >= '0' && c <= '9') {
       // If first number in sequence, add number sign
       if (!numberMode) {
         lineBuffer[bufferIndex].pattern = numberSign;
@@ -701,9 +725,8 @@ void prepareBrailleLine(char* line, int length) {
       }
       lineBuffer[bufferIndex].isSpace = false;
       bufferIndex++;
-      
     } else {
-      // Reset number mode when non-number encountered
+      // Regular characters (lowercase letters, spaces, etc.)
       numberMode = false;
       
       lineBuffer[bufferIndex].pattern = getBraillePattern(c);
@@ -712,8 +735,13 @@ void prepareBrailleLine(char* line, int length) {
     }
   }
   
-  // Set actual line length (may be greater than original if number signs were added)
+  // Set actual line length (may be greater than original due to indicators)
   lineLength = bufferIndex;
+  
+  Serial.print("Original chars: ");
+  Serial.print(length);
+  Serial.print(", After adding indicators: ");
+  Serial.println(lineLength);
 }
 
 // Print the prepared line row by row
